@@ -41,7 +41,7 @@ Prepare a PyTorch-compatible dataset loader that:
 ## 📂 Dataset Structure
 
 Each character class is stored in its own folder:
-
+```
 ProcessedDataset/
 ├── Sample001/ → Label 0 (Digit 0)
 ├── Sample002/ → Label 1 (Digit 1)
@@ -53,7 +53,7 @@ ProcessedDataset/
 
 Total Classes: **62**  
 (10 digits + 26 uppercase + 26 lowercase)
-
+```
 ---
 
 ## 🧠 What We Did
