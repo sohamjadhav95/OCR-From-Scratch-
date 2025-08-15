@@ -1,0 +1,16 @@
+# Core PyTorch with CUDA 11.8 (for RTX 3050)
+torch==2.0.1+cu118 --index-url https://download.pytorch.org/whl/cu118
+torchvision==0.15.2+cu118 --index-url https://download.pytorch.org/whl/cu118
+torchaudio==2.0.2+cu118 --index-url https://download.pytorch.org/whl/cu118
+
+# Image handling
+Pillow>=9.0.0
+
+# Numerical computations
+numpy>=1.23.0
+
+# Progress bars
+tqdm>=4.65.0
+
+# Plotting and visualization
+matplotlib>=3.7.0
