@@ -6,17 +6,20 @@ from model import OCRNet
 
 MODEL_PATH = "ocr_model_best.pth"
 LABEL_MAP_PATH = "label_map.json"
-IMAGE_PATH = "test_image.png"  # change this
+IMAGE_PATH = r"C:\Users\ROG\Downloads\maxresdefault.jpg"  # change this
 
 # Load label mapping
 with open(LABEL_MAP_PATH, "r") as f:
     label_map = json.load(f)
 
+
 # Load model
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = OCRNet()
 model.load_state_dict(torch.load(MODEL_PATH, map_location=device))
+model.to(device)  # <--- MOVE MODEL TO DEVICE
 model.eval()
+
 
 # Preprocessing (same as training)
 transform = transforms.Compose([

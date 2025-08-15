@@ -1,85 +1,55 @@
-# model.py
-# nn: Used to define layers (Conv2d, Linear, etc.)
-# F: Functional tools for activation functions (relu, etc.)
-
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-#Inherits from PyTorch’s nn.Module
-#Your actual neural network
-class OCRNet(nn.Module):
-    def __init__(self):
-        super(OCRNet, self).__init__()
+class ResidualBlock(nn.Module):
+    def __init__(self, in_channels, out_channels, stride=1):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size=3, stride=stride, padding=1)
+        self.bn1 = nn.BatchNorm2d(out_channels)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size=3, stride=1, padding=1)
+        self.bn2 = nn.BatchNorm2d(out_channels)
 
-        # Convolutional layers
-        self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)  # [B, 32, 32, 32]
-        self.pool1 = nn.MaxPool2d(2, 2)                          # [B, 32, 16, 16]
-        '''
-        conv1:
-        Input channels = 1 (grayscale)
-        Output channels = 32 (feature maps)
-        Padding = 1 (to preserve size)
-
-        pool1:
-        Max pooling 2×2 → halves width and height
-        32×32 becomes 16×16
-        '''
-
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, padding=1) # [B, 64, 16, 16]
-        self.pool2 = nn.MaxPool2d(2, 2)                           # [B, 64, 8, 8]
-        '''
-        conv2:
-        Input channels = 32 (from conv1)
-        Output channels = 64 (more feature maps)
-
-        pool2:
-        Max pooling 2×2 → halves width and height
-        16×16 becomes 8×8
-        '''
-
-        # Fully connected layers
-        self.fc1 = nn.Linear(64 * 8 * 8, 128)
-        self.fc2 = nn.Linear(128, 62)  # 62 output classes
-        '''
-        fc1: Dense layer from 64×8×8 (4096) → 128
-        fc2: Output layer → 62 units (one per character class)
-        '''
+        self.skip = nn.Sequential()
+        if stride != 1 or in_channels != out_channels:
+            self.skip = nn.Sequential(
+                nn.Conv2d(in_channels, out_channels, kernel_size=1, stride=stride),
+                nn.BatchNorm2d(out_channels)
+            )
 
     def forward(self, x):
-        x = self.pool1(F.relu(self.conv1(x)))
-        x = self.pool2(F.relu(self.conv2(x)))
-        x = x.view(x.size(0), -1)  # flatten
-        x = F.relu(self.fc1(x))
-        x = self.fc2(x)
+        identity = self.skip(x)
+        out = self.relu(self.bn1(self.conv1(x)))
+        out = self.bn2(self.conv2(out))
+        out += identity
+        out = self.relu(out)
+        return out
+
+class OCRNet(nn.Module):
+    def __init__(self, num_classes=62):
+        super(OCRNet, self).__init__()
+        self.layer1 = ResidualBlock(1, 32)
+        self.layer2 = ResidualBlock(32, 64, stride=2)
+        self.layer3 = ResidualBlock(64, 128, stride=2)
+        self.layer4 = ResidualBlock(128, 256, stride=2)
+        self.layer5 = ResidualBlock(256, 256)
+        self.layer6 = ResidualBlock(256, 512, stride=2)
+
+        self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
+        self.dropout = nn.Dropout(0.5)
+        self.fc = nn.Linear(512, num_classes)
+
+    def forward(self, x):
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
+        x = self.layer5(x)
+        x = self.layer6(x)
+
+        x = self.global_pool(x)
+        x = torch.flatten(x, 1)
+        x = self.dropout(x)
+        x = self.fc(x)
         return x
-
-    '''
-    Step-by-step:
-
-    Conv1 → ReLU → Pool → [B, 32, 16, 16]
-    Conv2 → ReLU → Pool → [B, 64, 8, 8]
-    Flatten to [B, 4096]
-    FC → ReLU → FC → Output logits
-    '''
-
-
-
-'''
-### 📌 Where Are the 1024 Input Features?
-
-Our 32×32 grayscale image contains **1024 pixel intensity values**, 
-but since we are using a **Convolutional Neural Network (CNN)**, 
-these values are **not flattened directly into a 1D vector at the beginning** 
-(as in traditional fully connected networks). 
-Instead, they are passed as a structured 2D input (`[1, 32, 32]`) to the convolutional layers, 
-which preserve spatial relationships.
-
-Each convolutional layer extracts meaningful patterns 
-(like strokes, curves, edges) using small filters. 
-Only after multiple convolution and pooling steps do we flatten 
-the output to feed into the fully connected layers. 
-So, the **1024 input values are still used**, 
-but in a spatially-aware manner — allowing the CNN to learn better from the 
-structure of the character image.
-
-'''

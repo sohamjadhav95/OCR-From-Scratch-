@@ -1,50 +1,65 @@
-import os
-from PIL import Image
-import torch
 from torch.utils.data import Dataset
+from PIL import Image, UnidentifiedImageError
+import os
 from torchvision import transforms
+import random
 
-# This class inherits from PyTorch's Dataset, which allows it to work with DataLoader.
 class OCRDataset(Dataset):
     def __init__(self, root_dir):
         self.root_dir = root_dir
-        self.image_paths = []
-        self.labels = []
+        self.samples = []
+        self.class_to_idx = {}
 
-        # Define transforms with augmentations for better generalization
-        self.transform = transforms.Compose([
-            transforms.Grayscale(num_output_channels=1),
-            transforms.Resize((32, 32)),
-            transforms.RandomApply([
-                transforms.RandomAffine(degrees=5, translate=(0.05, 0.05), shear=5),
-                transforms.RandomPerspective(distortion_scale=0.1, p=0.5),
-                transforms.ColorJitter(brightness=0.2, contrast=0.2),
-            ], p=0.7),
-            transforms.ToTensor(),
-            transforms.Normalize((0.5,), (0.5,)),  # normalize to [-1, 1]
-        ])
+        # Allowed image extensions
+        valid_exts = {".png", ".jpg", ".jpeg", ".bmp", ".tiff"}
 
-        # Scan all folders
+        # Create mapping and list of (image_path, label_idx)
         folders = sorted(os.listdir(root_dir))
-        for label_index, folder in enumerate(folders):
+        for idx, folder in enumerate(folders):
             folder_path = os.path.join(root_dir, folder)
             if not os.path.isdir(folder_path):
-                continue
+                continue  # Skip files in root_dir
 
-            for file in os.listdir(folder_path):
-                if file.lower().endswith(('.png', '.jpg', '.jpeg')):
-                    self.image_paths.append(os.path.join(folder_path, file))
-                    self.labels.append(label_index)
+            self.class_to_idx[folder] = idx
+            for img_name in os.listdir(folder_path):
+                ext = os.path.splitext(img_name)[1].lower()
+                if ext in valid_exts:  # Only keep valid image files
+                    self.samples.append((os.path.join(folder_path, img_name), idx))
+
+        # Normal transform (no augmentation)
+        self.transform = transforms.Compose([
+            transforms.Grayscale(num_output_channels=1),
+            transforms.Resize((48, 48)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.5,), (0.5,))
+        ])
+
+        # Augmentation transform
+        self.augment_transform = transforms.Compose([
+            transforms.Grayscale(num_output_channels=1),
+            transforms.Resize((48, 48)),
+            transforms.RandomAffine(degrees=10, translate=(0.05, 0.05)),  # ±10°, ±5% shift
+            transforms.ToTensor(),
+            transforms.Normalize((0.5,), (0.5,))
+        ])
 
     def __len__(self):
-        return len(self.image_paths)
+        return len(self.samples)
 
     def __getitem__(self, idx):
-        image_path = self.image_paths[idx]
-        image = Image.open(image_path)
-        label = self.labels[idx]
+        img_path, label = self.samples[idx]
 
-        if self.transform:
+        try:
+            image = Image.open(img_path).convert('L')
+        except (PermissionError, UnidentifiedImageError, IsADirectoryError, OSError) as e:
+            print(f"⚠️ Skipping unreadable file: {img_path} ({e})")
+            # Skip this index by picking a different one
+            return self.__getitem__((idx + 1) % len(self.samples))
+
+        # 50% chance to augment
+        if random.random() > 0.5:
+            image = self.augment_transform(image)
+        else:
             image = self.transform(image)
 
         return image, label
