@@ -4,9 +4,9 @@ from PIL import Image
 import json
 from model import OCRNet
 
-MODEL_PATH = "ocr_model_best.pth"
-LABEL_MAP_PATH = "label_map.json"
-IMAGE_PATH = r"C:\Users\ROG\Downloads\maxresdefault.jpg"  # change this
+MODEL_PATH = "D:\Project Backups\OCR-From-Scratch-\Models\90%\ocr_model_best (1).pth"
+LABEL_MAP_PATH = "D:\Project Backups\OCR-From-Scratch-\Models\90%\label_map.json"
+IMAGE_PATH = r"C:\Users\soham\OneDrive\Pictures\Screenshots\Screenshot 2025-08-21 141948.png"  # change this
 
 # Load label mapping
 with open(LABEL_MAP_PATH, "r") as f:
